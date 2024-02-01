@@ -17,6 +17,8 @@
 //! Definition of a general `CedarTestImplementation` trait that describes an
 //! implementation of Cedar to use during testing.
 
+use std::collections::HashMap;
+
 use cedar_policy::frontend::is_authorized::InterfaceResponse;
 pub use cedar_policy::Response;
 use cedar_policy_core::ast::{Expr, PolicySet, Request, Value};
@@ -25,11 +27,17 @@ pub use cedar_policy_validator::{ValidationMode, ValidationResult, ValidatorSche
 pub use entities::Entities;
 use serde::Deserialize;
 
-/// Type alias for convenience. Errors are represented as strings to make
-/// (de)serialization as simple as possible. For an `InterfaceResult`, an
-/// error represents a case where the external Cedar implementation failed
-/// to execute the request (e.g., due to a parse error).
-pub type InterfaceResult<T> = std::result::Result<T, String>;
+/// Redefinition of `Result` for convenience. Errors are represented as strings
+/// to make (de)serialization as simple as possible. An error represents a case
+/// where the Cedar implementation failed to execute the request (e.g., due to
+/// a parse error). The "Ok" case includes a map for additional information
+/// (e.g., timing results).
+pub enum InterfaceResult<T> {
+    /// Success
+    Ok(T, HashMap<String, String>),
+    /// Failure
+    Err(String),
+}
 
 /// "Interface" type for `ValidationResult` which represents validation
 /// errors as strings.

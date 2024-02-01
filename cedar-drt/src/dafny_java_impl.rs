@@ -31,6 +31,7 @@ use jni::{JNIVersion, JavaVM};
 use lazy_static::lazy_static;
 use log::info;
 use serde::Deserialize;
+use std::collections::HashMap;
 
 /// Times to (de)serialize JSON content sent to / received from the Dafny-Java
 /// implementation.
@@ -222,7 +223,7 @@ impl<'j> JavaDefinitionalEngine<'j> {
             .expect("failed to create Java object for authorization request string")
     }
 
-    fn deserialize_auth_response(&self, response: JValue) -> InterfaceResponse {
+    fn deserialize_auth_response(&self, response: JValue) -> InterfaceResult<InterfaceResponse> {
         let jresponse: JString = response
             .l()
             .unwrap_or_else(|_| {
@@ -256,7 +257,10 @@ impl<'j> JavaDefinitionalEngine<'j> {
         );
         info!("{}{}", JAVA_AUTH_MSG, d_response.auth_nanos);
 
-        d_response.response
+        InterfaceResult::Ok(
+            d_response.response,
+            HashMap::from([("auth+parse".into(), "{d_response.auth_nanos}".into())]),
+        )
     }
 
     /// Ask the definitional engine whether `isAuthorized` for the given `request`,
@@ -266,7 +270,7 @@ impl<'j> JavaDefinitionalEngine<'j> {
         request: &ast::Request,
         policies: &ast::PolicySet,
         entities: &Entities,
-    ) -> InterfaceResponse {
+    ) -> InterfaceResult<InterfaceResponse> {
         let (jstring, dur) =
             time_function(|| self.serialize_auth_request(request, policies, entities));
         info!("{}{}", RUST_SERIALIZATION_MSG, dur.as_nanos());
@@ -393,7 +397,7 @@ impl<'j> CedarTestImplementation for JavaDefinitionalEngine<'j> {
         policies: &ast::PolicySet,
         entities: &Entities,
     ) -> InterfaceResult<InterfaceResponse> {
-        Ok(self.is_authorized(&request, policies, entities))
+        self.is_authorized(&request, policies, entities)
     }
 
     fn interpret(
@@ -403,7 +407,10 @@ impl<'j> CedarTestImplementation for JavaDefinitionalEngine<'j> {
         expr: &Expr,
         expected: Option<Value>,
     ) -> InterfaceResult<bool> {
-        Ok(self.eval(&request, entities, expr, expected))
+        InterfaceResult::Ok(
+            self.eval(&request, entities, expr, expected),
+            HashMap::new(),
+        )
     }
 
     fn validate(
@@ -412,7 +419,7 @@ impl<'j> CedarTestImplementation for JavaDefinitionalEngine<'j> {
         policies: &ast::PolicySet,
         mode: ValidationMode,
     ) -> InterfaceResult<InterfaceValidationResult> {
-        Ok(self.validate(schema, policies, mode))
+        InterfaceResult::Ok(self.validate(schema, policies, mode), HashMap::new())
     }
 }
 
@@ -424,7 +431,10 @@ impl<'j> CustomCedarImpl for JavaDefinitionalEngine<'j> {
         policies: &ast::PolicySet,
         entities: &Entities,
     ) -> InterfaceResponse {
-        self.is_authorized(request, policies, entities)
+        match self.is_authorized(request, policies, entities) {
+            InterfaceResult::Ok(res, _) => res,
+            InterfaceResult::Err(_) => panic!("Unexpected failure in is_authorized"),
+        }
     }
 
     fn validate(
