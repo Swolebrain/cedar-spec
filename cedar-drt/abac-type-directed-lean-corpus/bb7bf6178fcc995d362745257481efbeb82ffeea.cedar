@@ -1,7 +1,0 @@
-forbid(
-  principal == a::"\0&\u{1}\0\0",
-  action == Action::"action",
-  resource == a::""
-) when {
-  ((true && (a::"\0&\u{1}\0\0" in principal)) && true) && true
-};

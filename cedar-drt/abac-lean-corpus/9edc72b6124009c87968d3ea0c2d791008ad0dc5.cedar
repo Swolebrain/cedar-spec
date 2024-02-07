@@ -1,7 +1,0 @@
-permit(
-  principal == r::r::r::r::r::r::r::r::r::r::r::r::r::r::r::r::r::r::h::r::r::r::r::r::f::r::r::r::r::r::r::r::r::r::r::r::r::r::r::r::r::r::r::r::r::r::r::K::r::r::r::A::y::yKXha3::r::a::"",
-  action,
-  resource
-) when {
-  true
-};

@@ -1,9 +1,0 @@
-@I("")
-@r("")
-permit(
-  principal,
-  action in [Action::"action"],
-  resource in a::""
-) when {
-  false
-};

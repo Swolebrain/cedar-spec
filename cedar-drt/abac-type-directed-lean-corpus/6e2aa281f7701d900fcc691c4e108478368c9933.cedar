@@ -1,7 +1,0 @@
-permit(
-  principal is a in a::"\0\0\0\0\0\0\0\0\0\0\0\06",
-  action in [Action::"action"],
-  resource
-) when {
-  ((true && ([[true]].containsAll({"\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\t\t\t\t\t\t\u{b}\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{4}\0": []}["\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\t\t\t\t\t\t\u{b}\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{3}\u{4}\0"]))) && (false == false)) && false
-};

@@ -1,9 +1,0 @@
-@B("\0")
-@r("")
-permit(
-  principal is a in a::"\0\0\062\u{1}",
-  action == Action::"action",
-  resource
-) when {
-  true && ((-9223372036854775808) == (if true then (-9223372036854775808) else (-9223372036854775808)))
-};

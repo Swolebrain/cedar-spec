@@ -1,7 +1,0 @@
-permit(
-  principal,
-  action,
-  resource is a in a::"6\u{1}"
-) when {
-  true
-};

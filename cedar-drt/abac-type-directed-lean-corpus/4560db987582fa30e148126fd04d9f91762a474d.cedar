@@ -1,7 +1,0 @@
-permit(
-  principal in a::"AAAAAAAA\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}",
-  action in [Action::"action",Action::"action",Action::"action"],
-  resource in a::"AAAAAAAA\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}"
-) when {
-  ((true && (true || (true && ("AAAA\n\n\n\n\n\n\n" == "")))) && (((if false then 9223372036854775807 else 9223372036854775807) * 9223372036854775807) == 9223372036854775807)) && (!("" == "A\u{1b}\u{1b}\u{1b}\n:\0\u{1b}\u{1b}\u{1b}\u{1b}\u{1b}"))
-};

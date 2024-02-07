@@ -1,7 +1,0 @@
-permit(
-  principal is a in a::"\0",
-  action,
-  resource in a::"\0"
-) when {
-  true && (true == (!action))
-};
