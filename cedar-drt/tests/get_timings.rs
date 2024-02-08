@@ -68,7 +68,6 @@ fn run_timing_tests(
                 && !filename.ends_with(".cedarschema.json")
                 && !filename.ends_with(".entities.json")
         });
-    println!("{:?}", tests);
     let mut results = HashMap::new();
     results.insert("total", HashMap::new());
     results.insert("authorize", HashMap::new());
@@ -134,22 +133,56 @@ fn write_results(filename: impl AsRef<Path>, timing_data: &HashMap<String, Vec<u
 
 #[test]
 fn run_all_tests() {
+    // Create authorization engines
     let rust_impl = RustEngine::new();
+    let lean_def_impl = LeanDefinitionalEngine::new();
+    let java_def_impl =
+        JavaDefinitionalEngine::new().expect("failed to create Dafny definitional engine");
+
+    // Run on abac-lean-corpus
     let timing_data = run_timing_tests(Path::new("abac-lean-corpus"), &rust_impl);
     write_results("rust_auth.csv", timing_data.get("authorize").unwrap());
     write_results("rust_total.csv", timing_data.get("total").unwrap());
 
-    let lean_def_impl = LeanDefinitionalEngine::new();
     let timing_data = run_timing_tests(Path::new("abac-lean-corpus"), &lean_def_impl);
     write_results("lean_auth.csv", timing_data.get("authorize").unwrap());
     write_results("lean_total.csv", timing_data.get("total").unwrap());
 
-    let java_def_impl =
-        JavaDefinitionalEngine::new().expect("failed to create Dafny definitional engine");
     let timing_data = run_timing_tests(Path::new("abac-lean-corpus"), &java_def_impl);
     write_results(
         "dafny_auth_parse.csv",
         timing_data.get("authorize_and_parse").unwrap(),
     );
     write_results("dafny_total.csv", timing_data.get("total").unwrap());
+
+    // Run on abac-type-directed-lean-corpus
+    let timing_data = run_timing_tests(Path::new("abac-type-directed-lean-corpus"), &rust_impl);
+    write_results(
+        "rust_auth_type_directed.csv",
+        timing_data.get("authorize").unwrap(),
+    );
+    write_results(
+        "rust_total_type_directed.csv",
+        timing_data.get("total").unwrap(),
+    );
+
+    let timing_data = run_timing_tests(Path::new("abac-type-directed-lean-corpus"), &lean_def_impl);
+    write_results(
+        "lean_auth_type_directed.csv",
+        timing_data.get("authorize").unwrap(),
+    );
+    write_results(
+        "lean_total_type_directed.csv",
+        timing_data.get("total").unwrap(),
+    );
+
+    let timing_data = run_timing_tests(Path::new("abac-type-directed-lean-corpus"), &java_def_impl);
+    write_results(
+        "dafny_auth_parse_type_directed.csv",
+        timing_data.get("authorize_and_parse").unwrap(),
+    );
+    write_results(
+        "dafny_total_type_directed.csv",
+        timing_data.get("total").unwrap(),
+    );
 }
