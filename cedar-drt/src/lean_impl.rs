@@ -181,7 +181,7 @@ impl LeanDefinitionalEngine {
                     .collect();
                 TestResult::Success(TestResponse {
                     response: InterfaceResponse::new(decision, reason, errors),
-                    timing_info: HashMap::from([("authorization".into(), auth_time)]),
+                    timing_info: HashMap::from([("authorize".into(), auth_time)]),
                 })
             }
             AuthorizationResponse::Error(err) => TestResult::Failure(err),

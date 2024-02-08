@@ -18,10 +18,8 @@
 
 use cedar_policy::{cedar_test_impl::*, integration_testing::*};
 
-use cedar_drt::{
-    ast::{PolicySet, Request},
-    Entities, JavaDefinitionalEngine,
-};
+use cedar_drt::ast::{PolicySet, Request};
+use cedar_drt::{Entities, JavaDefinitionalEngine, LeanDefinitionalEngine};
 use std::{collections::HashMap, io::Write, path::Path};
 use walkdir::WalkDir;
 
@@ -135,15 +133,17 @@ fn write_results(filename: impl AsRef<Path>, timing_data: &HashMap<String, Vec<u
 }
 
 #[test]
-fn run_rust_tests() {
+fn run_all_tests() {
     let rust_impl = RustEngine::new();
     let timing_data = run_timing_tests(Path::new("abac-lean-corpus"), &rust_impl);
     write_results("rust_auth.csv", timing_data.get("authorize").unwrap());
     write_results("rust_total.csv", timing_data.get("total").unwrap());
-}
 
-#[test]
-fn run_dafny_tests() {
+    let lean_def_impl = LeanDefinitionalEngine::new();
+    let timing_data = run_timing_tests(Path::new("abac-lean-corpus"), &lean_def_impl);
+    write_results("lean_auth.csv", timing_data.get("authorize").unwrap());
+    write_results("lean_total.csv", timing_data.get("total").unwrap());
+
     let java_def_impl =
         JavaDefinitionalEngine::new().expect("failed to create Dafny definitional engine");
     let timing_data = run_timing_tests(Path::new("abac-lean-corpus"), &java_def_impl);
@@ -152,12 +152,4 @@ fn run_dafny_tests() {
         timing_data.get("authorize_and_parse").unwrap(),
     );
     write_results("dafny_total.csv", timing_data.get("total").unwrap());
-}
-
-#[test]
-fn run_lean_tests() {
-    let lean_def_impl = LeanDefinitionalEngine::new();
-    let timing_data = run_timing_tests(Path::new("abac-lean-corpus"), &lean_def_impl);
-    write_results("lean_auth.csv", timing_data.get("authorize").unwrap());
-    write_results("lean_total.csv", timing_data.get("total").unwrap());
 }
