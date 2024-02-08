@@ -239,7 +239,7 @@ impl<'j> JavaDefinitionalEngine<'j> {
             response: d_response.response,
             timing_info: HashMap::from([(
                 "authorize_and_parse".into(),
-                d_response.auth_nanos * 1000,
+                d_response.auth_nanos / 1000,
             )]),
         };
         response
@@ -328,7 +328,7 @@ impl<'j> JavaDefinitionalEngine<'j> {
             errors: d_response.response.validation_errors,
             timing_info: HashMap::from([(
                 "validation_and_parse".into(),
-                d_response.validation_nanos * 1000,
+                d_response.validation_nanos / 1000,
             )]),
         }
     }

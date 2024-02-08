@@ -149,7 +149,7 @@ impl LeanDefinitionalEngine {
             serde_json::from_str(&response_string).expect("could not deserialize json");
         match resp {
             AuthorizationResponse::Ok(resp) => {
-                let auth_time = resp.duration * 1000; // nanoseconds -> microseconds
+                let auth_time = resp.duration / 1000; // nanoseconds -> microseconds
                 info!("{LEAN_AUTH_MSG}{auth_time}");
 
                 let resp = resp.data;
@@ -276,7 +276,7 @@ impl LeanDefinitionalEngine {
                 };
                 let response = TestValidationResult {
                     errors: validation_errors,
-                    timing_info: HashMap::from([("validation".into(), resp.duration * 1000)]),
+                    timing_info: HashMap::from([("validation".into(), resp.duration / 1000)]),
                 };
                 TestResult::Success(response)
             }
