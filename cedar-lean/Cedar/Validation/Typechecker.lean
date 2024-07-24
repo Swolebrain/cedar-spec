@@ -23,6 +23,7 @@ open Cedar.Data
 open Cedar.Spec
 
 inductive TypeError where
+  | levelError (ety : EntityType)
   | lubErr (ty₁ : CedarType) (ty₂ : CedarType)
   | unexpectedType (ty : CedarType)
   | attrNotFound (ty : CedarType) (attr : Attr)
@@ -41,7 +42,7 @@ abbrev ResultType := Except TypeError (CedarType × Capabilities)
 def ok (ty : CedarType) (c : Capabilities := ∅) : ResultType := .ok (ty, c)
 def err (e : TypeError) : ResultType := .error e
 
-def typeOfLit (p : Prim) (env : Environment) : ResultType :=
+def typeOfLit (p : Prim) (env : Environment) (inf : Bool) : ResultType :=
   match p with
   | .bool true     => ok (.bool .tt)
   | .bool false    => ok (.bool .ff)
@@ -49,13 +50,21 @@ def typeOfLit (p : Prim) (env : Environment) : ResultType :=
   | .string _      => ok .string
   | .entityUID uid =>
     if env.ets.contains uid.ty || env.acts.contains uid
-    then ok (.entity uid.ty)
+    -- Type the entity at level 0 if we're checking a finite leve schema
+    --  This will forbid derefernces of entity literals
+    -- othewise give it level infinity
+    then ok (.entity {
+      typeName := uid.ty,
+      level := if inf then .infinite else .finite 0
+    })
     else err (.unknownEntity uid.ty)
 
 def typeOfVar (v : Var) (env : Environment) : ResultType :=
   match v with
   | .principal => ok (.entity env.reqty.principal)
-  | .action    => ok (.entity env.reqty.action.ty)
+  | .action    =>
+    let ety := { typeName := env.reqty.action.fst.ty, level := env.reqty.action.snd }
+    ok (.entity ety)
   | .resource  => ok (.entity env.reqty.resource)
   | .context   => ok (.record env.reqty.context)
 
@@ -79,11 +88,11 @@ def typeOfAnd (r₁ : CedarType × Capabilities) (r₂ : ResultType) : ResultTyp
   | (.bool ty₁, c₁) => do
     let (ty₂, c₂) ← r₂
     match ty₂ with
-    | .bool .ff     => ok (.bool .ff)
-    | .bool .tt     => ok (.bool ty₁) (c₁ ∪ c₂)
-    | .bool _       => ok (.bool .anyBool) (c₁ ∪ c₂)
-    | _             => err (.unexpectedType ty₂)
-  | (ty₁, _)        => err (.unexpectedType ty₁)
+    | .bool .ff      => ok (.bool .ff)
+    | .bool .tt      => ok (.bool ty₁) (c₁ ∪ c₂)
+    | .bool .anyBool => ok (.bool .anyBool) (c₁ ∪ c₂)
+    | _              => err (.unexpectedType ty₂)
+  | (ty₁, _)         => err (.unexpectedType ty₁)
 
 def typeOfOr (r₁ : CedarType × Capabilities) (r₂ : ResultType) : ResultType :=
   match r₁ with
@@ -107,7 +116,7 @@ def typeOfUnaryApp (op : UnaryOp) (ty : CedarType) : ResultType :=
   | .not, .bool x          => ok (.bool x.not)
   | .neg, .int             => ok .int
   | .like _, .string       => ok (.bool .anyBool)
-  | .is ety₁, .entity ety₂ => ok (.bool (if ety₁ = ety₂ then .tt else .ff))
+  | .is ety₁, .entity ety₂ => ok (.bool (if ety₁ = ety₂.typeName then .tt else .ff))
   | _, _                   => err (.unexpectedType ty)
 
 def typeOfEq (ty₁ ty₂ : CedarType) (x₁ x₂ : Expr) : ResultType :=
@@ -134,28 +143,28 @@ def actionUID? (x : Expr) (acts: ActionSchema) : Option EntityUID := do
   if acts.contains uid then .some uid else .none
 
 -- x₁ in x₂ where x₁ has type ety₁ and x₂ has type ety₂
-def typeOfInₑ (ety₁ ety₂ : EntityType) (x₁ x₂ : Expr) (env : Environment) : BoolType :=
-  match actionUID? x₁ env.acts, entityUID? x₂ with
-  | .some uid₁, .some uid₂ =>
-    if env.acts.descendentOf uid₁ uid₂
-    then .tt
-    else .ff
-  | _, _ =>
-    if env.ets.descendentOf ety₁ ety₂
-    then .anyBool
-    else .ff
+def typeOfInₑ (ety₁ ety₂ : LeveledEntityType) (x₁ x₂ : Expr) (env : Environment) : ResultType :=
+  if ety₁.level > .finite 0 then type else err $ .levelError ety₁.typeName
+  where
+    type := ok $ .bool $ match actionUID? x₁ env.acts, entityUID? x₂ with
+        | .some uid₁, .some uid₂ =>
+          if env.acts.descendentOf uid₁ uid₂
+          then .tt else .ff
+        | _, _ =>
+          if env.ets.descendentOf ety₁.typeName ety₂.typeName
+          then .anyBool else .ff
 
 -- x₁ in x₂ where x₁ has type ety₁ and x₂ has type (.set ety₂)
-def typeOfInₛ (ety₁ ety₂ : EntityType) (x₁ x₂ : Expr) (env : Environment) : BoolType :=
-  match actionUID? x₁ env.acts, entityUIDs? x₂ with
-  | .some uid₁, .some uids =>
-    if uids.any (env.acts.descendentOf uid₁ ·)
-    then .tt
-    else .ff
-  | _, _ =>
-    if env.ets.descendentOf ety₁ ety₂
-    then .anyBool
-    else .ff
+def typeOfInₛ (ety₁ ety₂ : LeveledEntityType) (x₁ x₂ : Expr) (env : Environment) : ResultType :=
+  if ety₁.level > .finite 0 then type else err $ .levelError ety₁.typeName
+  where
+    type := ok $ .bool $  match actionUID? x₁ env.acts, entityUIDs? x₂ with
+        | .some uid₁, .some uids =>
+          if uids.any (env.acts.descendentOf uid₁ ·)
+          then .tt else .ff
+        | _, _ =>
+          if env.ets.descendentOf ety₁.typeName ety₂.typeName
+          then .anyBool else .ff
 
 def ifLubThenBool (ty₁ ty₂ : CedarType) : ResultType :=
   match ty₁ ⊔ ty₂ with
@@ -165,8 +174,8 @@ def ifLubThenBool (ty₁ ty₂ : CedarType) : ResultType :=
 def typeOfBinaryApp (op₂ : BinaryOp) (ty₁ ty₂ : CedarType) (x₁ x₂ : Expr) (env : Environment) : ResultType :=
   match op₂, ty₁, ty₂ with
   | .eq, _, _                               => typeOfEq ty₁ ty₂ x₁ x₂
-  | .mem, .entity ety₁, .entity ety₂        => ok (.bool (typeOfInₑ ety₁ ety₂ x₁ x₂ env))
-  | .mem, .entity ety₁, .set (.entity ety₂) => ok (.bool (typeOfInₛ ety₁ ety₂ x₁ x₂ env))
+  | .mem, .entity ety₁, .entity ety₂        => (typeOfInₑ ety₁ ety₂ x₁ x₂ env)
+  | .mem, .entity ety₁, .set (.entity ety₂) => (typeOfInₛ ety₁ ety₂ x₁ x₂ env)
   | .less,   .int, .int                     => ok (.bool .anyBool)
   | .lessEq, .int, .int                     => ok (.bool .anyBool)
   | .add,    .int, .int                     => ok .int
@@ -192,13 +201,39 @@ def typeOfHasAttr (ty : CedarType) (x : Expr) (a : Attr) (c : Capabilities) (env
   match ty with
   | .record rty => hasAttrInRecord rty x a c true
   | .entity ety =>
-    match env.ets.attrs? ety with
-    | .some rty => hasAttrInRecord rty x a c false
-    | .none     =>
-      if actionType? ety env.acts
-      then ok (.bool .ff) -- action attributes not allowed
-      else err (.unknownEntity ety)
+        let hasType :=
+          match env.ets.attrs? ety.typeName  with
+          | .some rty => hasAttrInRecord rty x a c false
+          | .none     =>
+            if actionType? ety.typeName env.acts
+            then ok (.bool .ff) -- action attributes not allowed
+            else err (.unknownEntity ety.typeName)
+        if ety.level > .finite 0 then hasType else err $ .levelError ety.typeName
   | _           => err (.unexpectedType ty)
+
+def delevel (cur : Level) (ty : CedarType)  : CedarType :=
+  match ty with
+  | .bool b => .bool b
+  | .int => .int
+  | .string => .string
+  | .entity ety  => .entity $ ety.setLevel cur.sub1
+  | .set ty => .set $ delevel cur ty
+  | .record rty =>
+    let kvs := rty.kvs.map₁ (
+      λ pair =>
+        let fst := pair.val.fst
+        let snd := (delevel cur) <$> pair.val.snd
+        (fst, snd)
+    )
+    .record $ Map.mk kvs
+  | .ext ty => .ext ty
+termination_by sizeOf ty
+decreasing_by
+  all_goals sorry
+
+
+
+
 
 def getAttrInRecord (ty : CedarType) (rty : RecordType) (x : Expr) (a : Attr) (c : Capabilities) : ResultType :=
   match rty.find? a with
@@ -210,9 +245,13 @@ def typeOfGetAttr (ty : CedarType) (x : Expr) (a : Attr) (c : Capabilities) (env
   match ty with
   | .record rty => getAttrInRecord ty rty x a c
   | .entity ety =>
-    match env.ets.attrs? ety with
-    | .some rty => getAttrInRecord ty rty x a c
-    | .none     => err (.unknownEntity ety)
+    if ety.level > .finite 0 then
+      match env.ets.attrs? ety.typeName with
+      | .some rty => do
+        let (type, caps) ← getAttrInRecord ty rty x a c
+        .ok (delevel ety.level type, caps)
+      | .none     => err (.unknownEntity ety.typeName)
+    else err $ .levelError ety.typeName
   | _           => err (.unexpectedType ty)
 
 def typeOfSet (tys : List CedarType) : ResultType :=
@@ -256,40 +295,40 @@ def typeOfCall (xfn : ExtFun) (tys : List CedarType) (xs : List Expr) : ResultTy
 -- Note: if x types as .tt or .ff, it is okay to replace x with the literal
 -- expression true or false if x can never throw an extension error at runtime.
 -- This is true for the current version of Cedar.
-def typeOf (x : Expr) (c : Capabilities) (env : Environment) : ResultType :=
+def typeOf (x : Expr) (c : Capabilities) (env : Environment) (inf: Bool) : ResultType :=
   match x with
-  | .lit p => typeOfLit p env
+  | .lit p => typeOfLit p env inf
   | .var v => typeOfVar v env
   | .ite x₁ x₂ x₃ => do
-    let (ty₁, c₁) ← typeOf x₁ c env
-    typeOfIf (ty₁, c₁) (typeOf x₂ (c ∪ c₁) env) (typeOf x₃ c env)
+    let (ty₁, c₁) ← typeOf x₁ c env inf
+    typeOfIf (ty₁, c₁) (typeOf x₂ (c ∪ c₁) env inf) (typeOf x₃ c env inf)
   | .and x₁ x₂ => do
-    let (ty₁, c₁) ← typeOf x₁ c env
-    typeOfAnd (ty₁, c₁) (typeOf x₂ (c ∪ c₁) env)
+    let (ty₁, c₁) ← typeOf x₁ c env inf
+    typeOfAnd (ty₁, c₁) (typeOf x₂ (c ∪ c₁) env inf)
   | .or x₁ x₂ => do
-    let (ty₁, c₁) ← typeOf x₁ c env
-    typeOfOr (ty₁, c₁) (typeOf x₂ c env)
+    let (ty₁, c₁) ← typeOf x₁ c env inf
+    typeOfOr (ty₁, c₁) (typeOf x₂ c env inf)
   | .unaryApp op₁ x₁ => do
-    let (ty₁, _) ← typeOf x₁ c env
+    let (ty₁, _) ← typeOf x₁ c env inf
     typeOfUnaryApp op₁ ty₁
   | .binaryApp op₂ x₁ x₂ => do
-    let (ty₁, _) ← typeOf x₁ c env
-    let (ty₂, _) ← typeOf x₂ c env
+    let (ty₁, _) ← typeOf x₁ c env inf
+    let (ty₂, _) ← typeOf x₂ c env inf
     typeOfBinaryApp op₂ ty₁ ty₂ x₁ x₂ env
   | .hasAttr x₁ a => do
-    let (ty₁, _) ← typeOf x₁ c env
+    let (ty₁, _) ← typeOf x₁ c env inf
     typeOfHasAttr ty₁ x₁ a c env
   | .getAttr x₁ a => do
-    let (ty₁, _) ← typeOf x₁ c env
+    let (ty₁, _) ← typeOf x₁ c env inf
     typeOfGetAttr ty₁ x₁ a c env
   | .set xs => do
-    let tys ← xs.mapM₁ (λ ⟨x₁, _⟩ => justType (typeOf x₁ c env))
+    let tys ← xs.mapM₁ (λ ⟨x₁, _⟩ => justType (typeOf x₁ c env inf))
     typeOfSet tys
   | .record axs => do
-    let atys ← axs.mapM₂ (λ ⟨(a₁, x₁), _⟩ => requiredAttr a₁ (typeOf x₁ c env))
+    let atys ← axs.mapM₂ (λ ⟨(a₁, x₁), _⟩ => requiredAttr a₁ (typeOf x₁ c env inf))
     ok (.record (Map.make atys))
   | .call xfn xs => do
-    let tys ← xs.mapM₁ (λ ⟨x₁, _⟩ => justType (typeOf x₁ c env))
+    let tys ← xs.mapM₁ (λ ⟨x₁, _⟩ => justType (typeOf x₁ c env inf))
     typeOfCall xfn tys xs
 
 ---- Derivations -----
