@@ -1,0 +1,135 @@
+{
+    "Workforce": {
+        "entityTypes": {
+            "Computer": {
+                "memberOfTypes": [
+                    "MachineGroup"
+                ],
+                "shape": {
+                    "type": "Record",
+                    "attributes": {
+                        "y": {
+                            "required": true,
+                            "type": "String"
+                        },
+                        "z": {
+                            "required": true,
+                            "type": "String"
+                        }
+                    }
+                }
+            },
+            "User": {
+                "shape": {
+                    "attributes": {
+                        "k": {
+                            "required": true,
+                            "type": "String"
+                        },
+                        "j": {
+                            "type": "String",
+                            "required": true
+                        },
+                        "i": {
+                            "required": true,
+                            "type": "String"
+                        }
+                    },
+                    "type": "Record"
+                },
+                "memberOfTypes": [
+                    "UserGroup"
+                ]
+            },
+            "MachineGroup": {
+                "shape": {
+                    "attributes": {},
+                    "type": "Record"
+                },
+                "memberOfTypes": [
+                    "MachineGroup"
+                ]
+            },
+            "UserGroup": {
+                "memberOfTypes": [
+                    "UserGroup"
+                ],
+                "shape": {
+                    "type": "Record",
+                    "attributes": {
+                        "b": {
+                            "required": true,
+                            "type": "String"
+                        },
+                        "c": {
+                            "required": true,
+                            "type": "String"
+                        },
+                        "a": {
+                            "required": true,
+                            "type": "String"
+                        }
+                    }
+                }
+            }
+        },
+        "actions": {
+            "DeleteComputer": {
+                "appliesTo": {
+                    "resourceTypes": [
+                        "Computer"
+                    ],
+                    "context": {
+                        "attributes": {},
+                        "type": "Record"
+                    },
+                    "principalTypes": [
+                        "User"
+                    ]
+                }
+            },
+            "CreateComputer": {
+                "appliesTo": {
+                    "context": {
+                        "type": "Record",
+                        "attributes": {}
+                    },
+                    "resourceTypes": [
+                        "Computer"
+                    ],
+                    "principalTypes": [
+                        "User"
+                    ]
+                }
+            },
+            "ReadComputer": {
+                "appliesTo": {
+                    "resourceTypes": [
+                        "Computer"
+                    ],
+                    "context": {
+                        "attributes": {},
+                        "type": "Record"
+                    },
+                    "principalTypes": [
+                        "User"
+                    ]
+                }
+            },
+            "UpdateComputer": {
+                "appliesTo": {
+                    "context": {
+                        "attributes": {},
+                        "type": "Record"
+                    },
+                    "principalTypes": [
+                        "User"
+                    ],
+                    "resourceTypes": [
+                        "Computer"
+                    ]
+                }
+            }
+        }
+    }
+}

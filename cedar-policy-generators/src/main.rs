@@ -2,11 +2,14 @@ use std::{fs::File, io};
 
 use anyhow::{anyhow, Result};
 use arbitrary::Unstructured;
-use cedar_policy_core::entities::{Entities, TCComputation};
+use cedar_policy_core::{
+    ast::{Expr, PolicyID, PolicySet},
+    entities::{Entities, TCComputation},
+};
 use cedar_policy_generators::{
-    hierarchy::{EntityUIDGenMode, HierarchyGenerator, HierarchyGeneratorMode, NumEntities},
-    schema::Schema,
-    settings::ABACSettings,
+    abac::Type, hierarchy::{
+        EntityUIDGenMode, Hierarchy, HierarchyGenerator, HierarchyGeneratorMode, NumEntities,
+    }, policy::GeneratedPolicy, schema::Schema, settings::ABACSettings
 };
 use cedar_policy_validator::SchemaFragment;
 use clap::{Args, Parser, Subcommand};
@@ -97,19 +100,106 @@ fn generate_hierarchy_from_schema(byte_length: usize, args: &HierarchyArgs) -> R
     )?)
 }
 
+fn generate_hierarchy(filename: &str, u: &mut Unstructured<'_>) -> Result<(Hierarchy, Schema)> {
+    let f = File::open(filename)?;
+
+    let fragment = SchemaFragment::from_file(f)?;
+
+    let settings = ABACSettings {
+        match_types: true,
+        enable_extensions: true,
+        max_depth: 6,
+        max_width: 40,
+        enable_additional_attributes: false,
+        enable_like: true,
+        enable_action_groups_and_attrs: true,
+        enable_arbitrary_func_call: false,
+        enable_unknowns: false,
+        enable_unspecified_apply_spec: true,
+        enable_action_in_constraints: true,
+    };
+    let schema = Schema::from_schemafrag(fragment, settings, u)
+        .map_err(|err| anyhow!("failed to construct `Schema`: {err:#?}"))?;
+    let h = HierarchyGenerator {
+        mode: HierarchyGeneratorMode::SchemaBased { schema: &schema },
+        uid_gen_mode: EntityUIDGenMode::Nanoid(6),
+        num_entities: NumEntities::Exactly(120),
+        u: u,
+    }
+    .generate()
+    .map_err(|err| anyhow!("failed to generate hierarchy: {err:#?}"))?;
+    Ok((h, schema))
+}
+
+fn generate_expr<'a>(
+    schema: &'a Schema,
+    hierarchy: &'a Hierarchy,
+) -> Result<cedar_policy_core::ast::Expr, cedar_policy_generators::err::Error> {
+    let mut rng = thread_rng();
+    let mut bytes = Vec::with_capacity(1);
+    bytes.resize_with(64, || rng.gen());
+    let mut u = Unstructured::new(&bytes);
+    let mut expr_generator = schema.exprgenerator(Some(&hierarchy));
+    expr_generator.generate_expr_for_type(&Type::Bool, 8, &mut u)
+}
+
 fn main() {
-    let cli = Cli::parse();
-    match &cli.command {
-        Commands::Hierarchy(args) => {
-            match generate_hierarchy_from_schema(cli.byte_length as usize, args) {
-                Ok(h) => {
-                    h.write_to_json(io::stdout())
-                        .unwrap_or_else(|err| eprintln!("cannot convert entities to JSON: {err}"));
-                }
-                Err(err) => {
-                    eprintln!("{err}");
-                }
+    let size: usize = 1000000;
+    let mut bytes = Vec::with_capacity(1);
+    let mut rng = thread_rng();
+    bytes.resize_with(size, || rng.gen());
+    let mut u = Unstructured::new(&bytes);
+
+    let (hierarchy, schema) = match generate_hierarchy("workforce.json", &mut u) {
+        Ok((h, s)) => (h, s),
+        Err(err) => {
+            eprintln!("{err}");
+            return;
+        }
+    };
+
+    let entities =
+        match Entities::from_entities(hierarchy.entities().cloned(), TCComputation::ComputeNow) {
+            Ok(e) => e,
+            Err(err) => {
+                eprintln!("{err}");
+                return;
+            }
+        };
+
+    println!("ENTITIES");
+    entities.write_to_json(io::stdout()).unwrap_or_else(|err| eprintln!("cannot convert entities to JSON: {err}"));
+
+    println!("\n\nPOLICIES:");
+
+    let mut policy_set = PolicySet::new();
+    for i in 1..1000 {
+        let policy_id = PolicyID::from_string(format!("policy_{i}"));
+        let abac_expr = match generate_expr(&schema, &hierarchy) {
+            Ok(expr) => expr,
+            Err(_) => Expr::val(true),
+        };
+        let generated_policy = GeneratedPolicy::arbitrary_for_hierarchy(
+            Some(policy_id),
+            &hierarchy,
+            true,
+            abac_expr,
+            &mut u,
+        );
+        match generated_policy {
+            Ok(gp) => {
+                gp.add_to_policyset(&mut policy_set);
+            }
+            Err(err) => {
+                eprintln!("{err}");
+                continue;
             }
         }
     }
+    use itertools::Itertools;
+    println!(
+        "@@@TEMPLATES:\n{}\n\n @@@POLICIES:\n{}",
+        policy_set.all_templates().map(|t| t.to_string()).join("\n"),
+        policy_set.policies().map(|p| p.to_string()).join("\n")
+    )
 }
