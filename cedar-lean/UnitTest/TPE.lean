@@ -15,6 +15,7 @@
 -/
 
 import Cedar.TPE.Evaluator
+import Cedar.TPE.SlicedPolicies
 import Cedar.Spec.Expr
 import Cedar.Validation.Types
 import Cedar.Data.Map
@@ -917,8 +918,93 @@ def tests :=
 
 end UnitTest.TPE.SchemaInformed
 
+namespace UnitTest.TPE.SlicedPolicies
+
+open Cedar.Data
+open Cedar.Spec
+open Cedar.TPE
+open Cedar.Validation
+
+private def userTy : EntityType := ⟨"User", []⟩
+private def actionTy : EntityType := ⟨"Action", []⟩
+private def action (id : String) : EntityUID := ⟨actionTy, id⟩
+private def actionEntry (ancestors : List EntityUID) : ActionSchemaEntry :=
+  ⟨Set.singleton userTy, Set.singleton userTy, Set.make ancestors, Map.empty⟩
+
+private def schema : Schema := {
+  ets := Map.make [(userTy, .standard ⟨Set.empty, Map.empty, none⟩)]
+  acts := Map.make [
+    (action "a0", actionEntry [action "g"]),
+    (action "g", actionEntry []),
+  ]
+}
+
+private def req : PartialRequest :=
+  ⟨⟨userTy, none⟩, action "a0", ⟨userTy, none⟩, some Map.empty⟩
+
+private def entities : PartialEntities :=
+  Map.make [(action "a0", ⟨some Map.empty, some (Set.singleton (action "g")), some Map.empty⟩)]
+
+private def entitiesWithOffSliceAction : PartialEntities :=
+  Map.make [
+    (action "a0", ⟨some Map.empty, some (Set.singleton (action "g")), some Map.empty⟩),
+    (action "sibling", ⟨some Map.empty, some Set.empty, some Map.empty⟩),
+  ]
+
+private def invalidEnvReq : PartialRequest :=
+  ⟨⟨userTy, none⟩, action "missing", ⟨userTy, none⟩, some Map.empty⟩
+
+private def policy (id : String) (principal : Scope) (actionScope : ActionScope) : Policy :=
+  ⟨id, .permit, .principalScope principal, actionScope, .resourceScope .any, []⟩
+
+private def summarize (r : Except Cedar.TPE.Error Cedar.TPE.Response) :
+    Except Cedar.TPE.Error (Option Decision × Set PolicyID × Set PolicyID × Set PolicyID) :=
+  r.map λ r => (r.decision, r.satisfiedPermits, r.falsePermits, r.residualPermits)
+
+def tests : TestSuite IO :=
+  let policies := [
+    policy "kept" .any (.actionInAny [action "a0", action "sibling", action "g"]),
+    policy "wrong-action" .any (.actionScope (.eq (action "sibling"))),
+    policy "wrong-principal-type" (.is ⟨"Group", []⟩) (.actionScope .any),
+  ]
+  let sliced := slicePoliciesForRequestEnv policies
+    ⟨schema.ets, schema.acts, ⟨userTy, action "a0", userTy, Map.empty⟩⟩
+  suite "TPE authorization with sliced policies" [
+    test "drop impossible policies and prune action-in list" ⟨λ _ =>
+      checkEq sliced [policy "kept" .any (.actionInAny [action "a0", action "g"])]⟩,
+    test "authorize using only retained policy" ⟨λ _ =>
+      checkEq
+        (summarize (isAuthorizedPartialWithSlicedPolicies schema policies req entities))
+        (.ok (some .allow, Set.singleton "kept", Set.empty, Set.empty))⟩,
+    test "require concrete request-action ancestors" ⟨λ _ =>
+      checkEq
+        (isAuthorizedPartialWithSlicedPolicies schema policies req Map.empty).isOk
+        false⟩,
+    test "reject action entities outside the supplied slice" ⟨λ _ =>
+      checkEq
+        (isAuthorizedPartialWithSlicedPolicies schema policies req entitiesWithOffSliceAction).isOk
+        false⟩,
+    test "preserve invalid-environment fallback" ⟨λ _ =>
+      let isInvalidEnvironment := fun r => match r with
+        | .error .invalidEnvironment => true
+        | _ => false
+      checkEq
+        (isInvalidEnvironment (isAuthorizedPartialWithSlicedPolicies schema policies invalidEnvReq entities),
+          isInvalidEnvironment (isAuthorized schema policies invalidEnvReq entities))
+        (true, true)⟩,
+    test "dropped policies are not typechecked" ⟨λ _ =>
+      let invalid := policy "invalid-but-inapplicable" (.is ⟨"Missing", []⟩) (.actionScope .any)
+      checkEq
+        ((isAuthorized schema [invalid] req entities).isOk,
+          (isAuthorizedPartialWithSlicedPolicies schema [invalid] req entities).isOk)
+        (false, true)⟩,
+  ]
+
+end UnitTest.TPE.SlicedPolicies
+
 open UnitTest.TPE
 
-def tests := [Basic.tests, Motivation.tests, Spec.tests, ExtHasAttr.tests, SchemaInformed.tests]
+def tests := [Basic.tests, Motivation.tests, Spec.tests, ExtHasAttr.tests,
+  SchemaInformed.tests, SlicedPolicies.tests]
 
 end UnitTest.TPE
