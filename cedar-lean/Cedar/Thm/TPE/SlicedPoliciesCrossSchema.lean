@@ -2608,21 +2608,21 @@ end EnvRel
 /-! ## 6. Building `EnvRel` from the top-level hypotheses -/
 
 theorem envRel_of_slice {sliced full : Schema} {req : PartialRequest} {envF envS : TypeEnv}
-    (hslice : sliced.IsActionSliceOf full req.action)
-    (hwfF : full.validateWellFormed = .ok ())
-    (hwfS : sliced.validateWellFormed = .ok ())
-    (hno : full.noActionTypedAttrs = true)
-    (hF : validatePartialRequest full req = .ok envF)
-    (hS : validatePartialRequest sliced req = .ok envS) :
+    (schemaSlice : sliced.IsActionSliceOf full req.action)
+    (fullSchemaWellFormed : full.validateWellFormed = .ok ())
+    (slicedSchemaWellFormed : sliced.validateWellFormed = .ok ())
+    (noActionTypedAttributes : full.noActionTypedAttrs = true)
+    (fullRequestValid : validatePartialRequest full req = .ok envF)
+    (slicedRequestValid : validatePartialRequest sliced req = .ok envS) :
     EnvRel envF envS := by
-  have henv := validatePartialRequest_slice_env hslice rfl hF hS
-  have hwfenvF := wf_of_environment hwfF (validatePartialRequest_environment hF).1
-  have hwfenvS := wf_of_environment hwfS (validatePartialRequest_environment hS).1
-  obtain ⟨ase, hfind, hets, hacts, hact⟩ := SlicedPoliciesActionInAny.env_facts hF
-  obtain ⟨ase', hfind', hp, hr, henvF⟩ := environment?_facts (validatePartialRequest_environment hF).1
+  have henv := validatePartialRequest_slice_env schemaSlice rfl fullRequestValid slicedRequestValid
+  have hwfenvF := wf_of_environment fullSchemaWellFormed (validatePartialRequest_environment fullRequestValid).1
+  have hwfenvS := wf_of_environment slicedSchemaWellFormed (validatePartialRequest_environment slicedRequestValid).1
+  obtain ⟨ase, hfind, hets, hacts, hact⟩ := SlicedPoliciesActionInAny.env_facts fullRequestValid
+  obtain ⟨ase', hfind', hp, hr, henvF⟩ := environment?_facts (validatePartialRequest_environment fullRequestValid).1
   rw [hfind] at hfind'; cases hfind'
-  obtain ⟨hpc, hrc⟩ := env_principal_resource_ets hno hF
-  have hnoA := hno
+  obtain ⟨hpc, hrc⟩ := env_principal_resource_ets noActionTypedAttributes fullRequestValid
+  have hnoA := noActionTypedAttributes
   simp only [Schema.noActionTypedAttrs, Bool.and_eq_true, List.all_eq_true] at hnoA
   obtain ⟨hnoEts, hnoActs⟩ := hnoA
   have hfa : full.acts.contains req.action = true := by simp [ActionSchema.contains, hfind]
@@ -2632,12 +2632,12 @@ theorem envRel_of_slice {sliced full : Schema} {req : PartialRequest} {envF envS
     reqty := rfl
     actF := by rw [hacts, hact]; exact hfa
     actS := by
-      simp only [hact, ActionSchema.contains, hslice.find?_self, hfind, Option.isSome_some]
+      simp only [hact, ActionSchema.contains, schemaSlice.find?_self, hfind, Option.isSome_some]
     sub := by
       intro u e he
-      rw [hacts]; exact (hslice.find?_some he).1
+      rw [hacts]; exact (schemaSlice.find?_some he).1
     desc := by
-      intro u; simp only [hacts, hact, hslice.descendentOf_eq]
+      intro u; simp only [hacts, hact, schemaSlice.descendentOf_eq]
     disj := hwfenvF.2.1.2.2.1
     ancActs := by
       intro u e hm anc hanc
@@ -2648,11 +2648,11 @@ theorem envRel_of_slice {sliced full : Schema} {req : PartialRequest} {envF envS
       have hf := Map.mem_toList_find? hwfenvS.2.1.1 hm
       simp only at hf
       rw [hacts]
-      exact Map.find?_mem_toList (hslice.find?_some hf).1
+      exact Map.find?_mem_toList (schemaSlice.find?_some hf).1
     closureContains := by
       intro u hd
       simp only [hact, hacts] at hd ⊢
-      exact hslice.contains_closure (closure_of_descendentOf hfa hd)
+      exact schemaSlice.contains_closure (closure_of_descendentOf hfa hd)
     ctx := by
       have haval : ase ∈ full.acts.values := Map.in_list_in_values (Map.find?_mem_toList hfind)
       have := (hnoActs ase haval).1.1
@@ -2722,33 +2722,33 @@ theorem evaluatePolicy_of {s : Schema} {p : Policy} {req : PartialRequest}
 theorem evaluatePolicy_kept_cross_schema
     {sliced full : Schema} {policies : Policies} {p p' : Policy}
     {req : PartialRequest} {es : PartialEntities} {envF envS : TypeEnv} {r : Residual}
-    (hslice : sliced.IsActionSliceOf full req.action)
-    (hwfF : full.validateWellFormed = .ok ())
-    (hwfS : sliced.validateWellFormed = .ok ())
-    (hmem : p ∈ policies)
-    (hnolits : full.noActionLiteralsInConditions policies = true)
-    (hnotests : full.noActionTypeTestsInConditions policies = true)
-    (hno : full.noActionTypedAttrs = true)
-    (hF : validatePartialRequest full req = .ok envF)
-    (hS : validatePartialRequest sliced req = .ok envS)
-    (hentsS : entitiesIsValid sliced es = true)
-    (hsl : Policy.sliceForRequestEnv p envF = some p')
-    (hcheckP : checkEntities full p.toExpr = .ok ())
-    (hfull : evaluatePolicy full p' req es = .ok r) :
+    (schemaSlice : sliced.IsActionSliceOf full req.action)
+    (fullSchemaWellFormed : full.validateWellFormed = .ok ())
+    (slicedSchemaWellFormed : sliced.validateWellFormed = .ok ())
+    (policyInSet : p ∈ policies)
+    (noActionLiteralsInConditions : full.noActionLiteralsInConditions policies = true)
+    (noActionTypeTestsInConditions : full.noActionTypeTestsInConditions policies = true)
+    (noActionTypedAttributes : full.noActionTypedAttrs = true)
+    (fullRequestValid : validatePartialRequest full req = .ok envF)
+    (slicedRequestValid : validatePartialRequest sliced req = .ok envS)
+    (slicedEntitiesValid : entitiesIsValid sliced es = true)
+    (policySlice : Policy.sliceForRequestEnv p envF = some p')
+    (fullPolicyEntityCheck : checkEntities full p.toExpr = .ok ())
+    (fullSlicedPolicyEvaluation : evaluatePolicy full p' req es = .ok r) :
     evaluatePolicy sliced p' req es = .ok r := by
-  have h := envRel_of_slice hslice hwfF hwfS hno hF hS
-  obtain ⟨env, te, c, henv, _, hc', ht, rfl⟩ := evaluatePolicy_ok_inv hfull
-  rw [hF] at henv; cases henv
-  have hwfenvF := wf_of_environment hwfF (validatePartialRequest_environment hF).1
-  obtain ⟨_, _, hets, hacts, _⟩ := SlicedPoliciesActionInAny.env_facts hF
-  have hpiece := h.piece_policy hets hacts hwfenvF hmem hnolits hsl hc'
+  have h := envRel_of_slice schemaSlice fullSchemaWellFormed slicedSchemaWellFormed noActionTypedAttributes fullRequestValid slicedRequestValid
+  obtain ⟨env, te, c, henv, _, hc', ht, rfl⟩ := evaluatePolicy_ok_inv fullSlicedPolicyEvaluation
+  rw [fullRequestValid] at henv; cases henv
+  have hwfenvF := wf_of_environment fullSchemaWellFormed (validatePartialRequest_environment fullRequestValid).1
+  obtain ⟨_, _, hets, hacts, _⟩ := SlicedPoliciesActionInAny.env_facts fullRequestValid
+  have hpiece := h.piece_policy hets hacts hwfenvF policyInSet noActionLiteralsInConditions policySlice hc'
   obtain ⟨htS, hevS⟩ := hpiece ∅ te c ht
-  have hcS := checkEntities_sliced_policy hslice hwfF hmem hnolits hnotests hno hF hsl hcheckP
+  have hcS := checkEntities_sliced_policy schemaSlice fullSchemaWellFormed policyInSet noActionLiteralsInConditions noActionTypeTestsInConditions noActionTypedAttributes fullRequestValid policySlice fullPolicyEntityCheck
   have hschS : envS.schema = sliced := by
-    obtain ⟨_, _, hetsS, hactsS, _⟩ := SlicedPoliciesActionInAny.env_facts hS
+    obtain ⟨_, _, hetsS, hactsS, _⟩ := SlicedPoliciesActionInAny.env_facts slicedRequestValid
     simp only [TypeEnv.schema, hetsS, hactsS]
   rw [← h.reqty] at htS
-  rw [evaluatePolicy_of hS (hschS ▸ hentsS) hcS htS, hevS]
+  rw [evaluatePolicy_of slicedRequestValid (hschS ▸ slicedEntitiesValid) hcS htS, hevS]
 
 /-! ## 9. Main policy-level theorem -/
 
@@ -2757,60 +2757,68 @@ theorem evaluatePolicy_kept_cross_schema
 theorem evaluatePolicy_slice_keep_same_schema
     {schema : Schema} {p p' : Policy} {req : PartialRequest}
     {es : PartialEntities} {env : TypeEnv} {r : Residual}
-    (hreq : validatePartialRequest schema req = .ok env)
-    (hents : entitiesIsValid schema es = true)
-    (hanc : (es.ancestors req.action).isSome = true)
-    (hslice : Policy.sliceForRequestEnv p env = some p')
-    (heval : evaluatePolicy schema p req es = .ok r) :
+    (partialRequestValid : validatePartialRequest schema req = .ok env)
+    (partialEntitiesValid : entitiesIsValid schema es = true)
+    (actionAncestorsKnown : (es.ancestors req.action).isSome = true)
+    (policySlice : Policy.sliceForRequestEnv p env = some p')
+    (originalPolicyEvaluation : evaluatePolicy schema p req es = .ok r) :
     evaluatePolicy schema p' req es = .ok r := by
   rcases p with ⟨id, effect, ⟨ps⟩, asc, ⟨rs⟩, cs⟩
   cases asc with
   | actionInAny uids =>
     exact SlicedPoliciesActionInAny.evaluatePolicy_actionInAny_slice_keep
-      hreq hents hanc hslice rfl heval
+      partialRequestValid partialEntitiesValid actionAncestorsKnown policySlice rfl originalPolicyEvaluation
   | actionScope actionScope =>
     cases actionScope <;>
       simp only [Policy.sliceForRequestEnv, ActionScope.sliceForAction,
-        bind, Option.bind] at hslice
+        bind, Option.bind] at policySlice
     all_goals
-      repeat' split at hslice
+      repeat' split at policySlice
       all_goals simp_all
 
 /--
-Main result. Under the full-schema baseline (`evaluatePolicy full p = .ok r`),
-a policy kept by slicing for the *sliced* request environment evaluates under
-the *sliced* schema to exactly the same residual `r`.
+Main result. Under the full-schema baseline
+(`evaluatePolicy fullSchema policy = .ok residual`), a policy kept by slicing
+for the *sliced* request environment evaluates under the *sliced* schema to
+exactly the same residual.
 
-`hanc` (the request action's ancestors are known in the partial entities) is
-required: without it, an off-closure action scope remains residual under full
-partial authorization but policy slicing would drop it as a definite non-match.
+`actionAncestorsKnown` is required: without it, an off-closure action scope
+remains residual under full partial authorization, but policy slicing would
+drop it as a definite non-match.
 -/
 theorem evaluatePolicy_sliced_schema_eq_full
-    {sliced full : Schema} {policies : Policies} {p p' : Policy}
-    {req : PartialRequest} {es : PartialEntities} {envS : TypeEnv} {r : Residual}
-    (hwfF : full.validateWellFormed = .ok ())
-    (hwfS : sliced.validateWellFormed = .ok ())
-    (hslice : sliced.IsActionSliceOf full req.action)
-    (hmem : p ∈ policies)
-    (hnolits : full.noActionLiteralsInConditions policies = true)
-    (hnotests : full.noActionTypeTestsInConditions policies = true)
-    (hno : full.noActionTypedAttrs = true)
-    (hS : validatePartialRequest sliced req = .ok envS)
-    (hentsS : entitiesIsValid sliced es = true)
-    (hanc : (es.ancestors req.action).isSome = true)
-    (hbase : evaluatePolicy full p req es = .ok r)
-    (hsl : Policy.sliceForRequestEnv p envS = some p') :
-    evaluatePolicy sliced p' req es = .ok r := by
-  obtain ⟨envF, te, c, hF, hentsF, hcheckP, _, _⟩ := evaluatePolicy_ok_inv hbase
-  have hschF : envF.schema = full := by
-    obtain ⟨_, _, hetsF, hactsF, _⟩ := SlicedPoliciesActionInAny.env_facts hF
-    simp only [TypeEnv.schema, hetsF, hactsF]
-  have hslF : Policy.sliceForRequestEnv p envF = some p' := by
-    rw [sliceForRequestEnv_full_eq_sliced hslice hno hF hS]; exact hsl
-  have hfull' : evaluatePolicy full p' req es = .ok r :=
-    evaluatePolicy_slice_keep_same_schema hF (hschF ▸ hentsF) hanc hslF hbase
-  exact evaluatePolicy_kept_cross_schema hslice hwfF hwfS hmem hnolits hnotests hno hF hS
-    hentsS hslF hcheckP hfull'
+    {slicedSchema fullSchema : Schema} {policies : Policies} {policy policy' : Policy}
+    {partialRequest : PartialRequest} {partialEntities : PartialEntities} {slicedRequestEnv : TypeEnv} {residual : Residual}
+    (fullSchemaWellFormed : fullSchema.validateWellFormed = .ok ())
+    (slicedSchemaWellFormed : slicedSchema.validateWellFormed = .ok ())
+    (schemaSlice : slicedSchema.IsActionSliceOf fullSchema partialRequest.action)
+    (policyInSet : policy ∈ policies)
+    (noActionLiteralsInConditions : fullSchema.noActionLiteralsInConditions policies = true)
+    (noActionTypeTestsInConditions : fullSchema.noActionTypeTestsInConditions policies = true)
+    (noActionTypedAttributes : fullSchema.noActionTypedAttrs = true)
+    (slicedRequestValid : validatePartialRequest slicedSchema partialRequest = .ok slicedRequestEnv)
+    (slicedEntitiesValid : entitiesIsValid slicedSchema partialEntities = true)
+    (actionAncestorsKnown : (partialEntities.ancestors partialRequest.action).isSome = true)
+    (fullPolicyEvaluation : evaluatePolicy fullSchema policy partialRequest partialEntities = .ok residual)
+    (policySlice : Policy.sliceForRequestEnv policy slicedRequestEnv = some policy') :
+    evaluatePolicy slicedSchema policy' partialRequest partialEntities = .ok residual := by
+  obtain ⟨fullRequestEnv, typedExpression, capabilities, fullRequestValid, fullEntitiesValid, fullPolicyEntityCheck, _, _⟩ := evaluatePolicy_ok_inv fullPolicyEvaluation
+  have fullEnvSchema : fullRequestEnv.schema = fullSchema := by
+    obtain ⟨_, _, fullEntityTypes, fullActions, _⟩ :=
+      SlicedPoliciesActionInAny.env_facts fullRequestValid
+    simp only [TypeEnv.schema, fullEntityTypes, fullActions]
+  have fullPolicySlice : Policy.sliceForRequestEnv policy fullRequestEnv = some policy' := by
+    rw [sliceForRequestEnv_full_eq_sliced schemaSlice noActionTypedAttributes fullRequestValid slicedRequestValid]; exact policySlice
+  have slicedPolicyFullSchemaEvaluation :
+      evaluatePolicy fullSchema policy' partialRequest partialEntities = .ok residual :=
+    evaluatePolicy_slice_keep_same_schema fullRequestValid
+      (fullEnvSchema ▸ fullEntitiesValid) actionAncestorsKnown fullPolicySlice
+      fullPolicyEvaluation
+  exact evaluatePolicy_kept_cross_schema schemaSlice fullSchemaWellFormed
+    slicedSchemaWellFormed policyInSet noActionLiteralsInConditions
+    noActionTypeTestsInConditions noActionTypedAttributes fullRequestValid
+    slicedRequestValid slicedEntitiesValid fullPolicySlice fullPolicyEntityCheck
+    slicedPolicyFullSchemaEvaluation
 
 /-! ## 10. Authorization-level corollary -/
 
@@ -2872,81 +2880,81 @@ theorem sliceForRequestEnv_preserves_id_effect {p p' : Policy} {env : TypeEnv}
 /-- Authorization with sliced policies under the sliced schema refines full
     authorization under the full schema. -/
 theorem isAuthorized_sliced_schema_refines
-    {sliced full : Schema} {policies : Policies}
-    {req : PartialRequest} {es : PartialEntities} {envS : TypeEnv} {rf : Cedar.TPE.Response}
-    (hwfF : full.validateWellFormed = .ok ())
-    (hwfS : sliced.validateWellFormed = .ok ())
-    (hslice : sliced.IsActionSliceOf full req.action)
-    (hnolits : full.noActionLiteralsInConditions policies = true)
-    (hnotests : full.noActionTypeTestsInConditions policies = true)
-    (hno : full.noActionTypedAttrs = true)
-    (hS : validatePartialRequest sliced req = .ok envS)
-    (hentsS : entitiesIsValid sliced es = true)
-    (hanc : (es.ancestors req.action).isSome = true)
-    (hbase : isAuthorized full policies req es = .ok rf) :
-    ∃ rs, isAuthorized sliced (slicePoliciesForRequestEnv policies envS) req es = .ok rs ∧
-      rs.SliceRefines rf := by
-  have evalRP_ok : ∀ {s p rp}, evalRP s p req es = .ok rp →
-      ∃ r, evaluatePolicy s p req es = .ok r ∧ rp = ⟨p.id, p.effect, r⟩ := by
+    {slicedSchema fullSchema : Schema} {policies : Policies}
+    {partialRequest : PartialRequest} {partialEntities : PartialEntities} {slicedRequestEnv : TypeEnv} {fullResponse : Cedar.TPE.Response}
+    (fullSchemaWellFormed : fullSchema.validateWellFormed = .ok ())
+    (slicedSchemaWellFormed : slicedSchema.validateWellFormed = .ok ())
+    (schemaSlice : slicedSchema.IsActionSliceOf fullSchema partialRequest.action)
+    (noActionLiteralsInConditions : fullSchema.noActionLiteralsInConditions policies = true)
+    (noActionTypeTestsInConditions : fullSchema.noActionTypeTestsInConditions policies = true)
+    (noActionTypedAttributes : fullSchema.noActionTypedAttrs = true)
+    (slicedRequestValid : validatePartialRequest slicedSchema partialRequest = .ok slicedRequestEnv)
+    (slicedEntitiesValid : entitiesIsValid slicedSchema partialEntities = true)
+    (actionAncestorsKnown : (partialEntities.ancestors partialRequest.action).isSome = true)
+    (fullAuthorization : isAuthorized fullSchema policies partialRequest partialEntities = .ok fullResponse) :
+    ∃ slicedResponse, isAuthorized slicedSchema (slicePoliciesForRequestEnv policies slicedRequestEnv) partialRequest partialEntities = .ok slicedResponse ∧
+      slicedResponse.SliceRefines fullResponse := by
+  have residualPolicyEvaluationFacts : ∀ {s p rp}, evalRP s p partialRequest partialEntities = .ok rp →
+      ∃ r, evaluatePolicy s p partialRequest partialEntities = .ok r ∧ rp = ⟨p.id, p.effect, r⟩ := by
     intro s p rp h
     simp only [evalRP] at h
-    cases he : evaluatePolicy s p req es with
+    cases he : evaluatePolicy s p partialRequest partialEntities with
     | error e => simp [he, bind, Except.bind] at h
     | ok r =>
       simp only [he, bind, Except.bind, pure, Except.pure, Except.ok.injEq] at h
       exact ⟨r, rfl, h.symm⟩
-  have hdrop : ∀ p ∈ policies, ∀ rp, Policy.sliceForRequestEnv p envS = none →
-      evalRP full p req es = .ok rp → rp.isFalse = true := by
-    intro p _ rp hsl hrp
-    obtain ⟨r, hr, rfl⟩ := evalRP_ok hrp
-    obtain ⟨envF, _, _, hF, _, _, _, _⟩ := evaluatePolicy_ok_inv hr
-    have hslF : Policy.sliceForRequestEnv p envF = none := by
-      rw [sliceForRequestEnv_full_eq_sliced hslice hno hF hS]; exact hsl
-    exact SlicedPoliciesDropped.evaluatePolicy_dropped_isFalse hF hanc hslF hr
-  have hkeep : ∀ p ∈ policies, ∀ p' rp, Policy.sliceForRequestEnv p envS = some p' →
-      evalRP full p req es = .ok rp → evalRP sliced p' req es = .ok rp := by
-    intro p hmem p' rp hsl hrp
-    obtain ⟨r, hr, rfl⟩ := evalRP_ok hrp
-    have := evaluatePolicy_sliced_schema_eq_full hwfF hwfS hslice hmem hnolits hnotests hno hS
-      hentsS hanc hr hsl
-    obtain ⟨hid, heff⟩ := sliceForRequestEnv_preserves_id_effect hsl
-    simp only [evalRP, this, bind, Except.bind, pure, Except.pure, hid, heff]
-  rw [isAuthorized_eq_mapM] at hbase ⊢
-  cases hfull : policies.mapM (evalRP full · req es) with
-  | error _ => simp [hfull, bind, Except.bind] at hbase
-  | ok fullRs =>
-    simp only [hfull, bind, Except.bind, pure, Except.pure, Except.ok.injEq] at hbase
-    subst rf
-    obtain ⟨srs, hsrs, hrel⟩ := mapM_dropFalse (Policy.sliceForRequestEnv · envS) policies
-      hdrop hkeep policies (fun _ h => h) hfull
+  have droppedPoliciesAreFalse : ∀ p ∈ policies, ∀ rp, Policy.sliceForRequestEnv p slicedRequestEnv = none →
+      evalRP fullSchema p partialRequest partialEntities = .ok rp → rp.isFalse = true := by
+    intro p _ rp policySlice residualPolicyEvaluation
+    obtain ⟨r, policyEvaluation, rfl⟩ := residualPolicyEvaluationFacts residualPolicyEvaluation
+    obtain ⟨fullRequestEnv, _, _, fullRequestValid, _, _, _, _⟩ := evaluatePolicy_ok_inv policyEvaluation
+    have fullPolicySlice : Policy.sliceForRequestEnv p fullRequestEnv = none := by
+      rw [sliceForRequestEnv_full_eq_sliced schemaSlice noActionTypedAttributes fullRequestValid slicedRequestValid]; exact policySlice
+    exact SlicedPoliciesDropped.evaluatePolicy_dropped_isFalse fullRequestValid actionAncestorsKnown fullPolicySlice policyEvaluation
+  have keptPoliciesAgree : ∀ p ∈ policies, ∀ p' rp, Policy.sliceForRequestEnv p slicedRequestEnv = some p' →
+      evalRP fullSchema p partialRequest partialEntities = .ok rp → evalRP slicedSchema p' partialRequest partialEntities = .ok rp := by
+    intro p policyInSet p' rp policySlice residualPolicyEvaluation
+    obtain ⟨r, policyEvaluation, rfl⟩ := residualPolicyEvaluationFacts residualPolicyEvaluation
+    have := evaluatePolicy_sliced_schema_eq_full fullSchemaWellFormed slicedSchemaWellFormed schemaSlice policyInSet noActionLiteralsInConditions noActionTypeTestsInConditions noActionTypedAttributes slicedRequestValid
+      slicedEntitiesValid actionAncestorsKnown policyEvaluation policySlice
+    obtain ⟨samePolicyId, samePolicyEffect⟩ := sliceForRequestEnv_preserves_id_effect policySlice
+    simp only [evalRP, this, bind, Except.bind, pure, Except.pure, samePolicyId, samePolicyEffect]
+  rw [isAuthorized_eq_mapM] at fullAuthorization ⊢
+  cases fullResidualEvaluation : policies.mapM (evalRP fullSchema · partialRequest partialEntities) with
+  | error _ => simp [fullResidualEvaluation, bind, Except.bind] at fullAuthorization
+  | ok fullResidualPolicies =>
+    simp only [fullResidualEvaluation, bind, Except.bind, pure, Except.pure, Except.ok.injEq] at fullAuthorization
+    subst fullResponse
+    obtain ⟨slicedResidualPolicies, slicedResidualEvaluation, residualsDropFalse⟩ := mapM_dropFalse (Policy.sliceForRequestEnv · slicedRequestEnv) policies
+      droppedPoliciesAreFalse keptPoliciesAgree policies (fun _ h => h) fullResidualEvaluation
     simp only [slicePoliciesForRequestEnv]
-    rw [hsrs]
-    exact ⟨isAuthorizedFromResiduals srs, rfl, isAuthorizedFromResiduals_dropFalse hrel⟩
+    rw [slicedResidualEvaluation]
+    exact ⟨isAuthorizedFromResiduals slicedResidualPolicies, rfl, isAuthorizedFromResiduals_dropFalse residualsDropFalse⟩
 
 /-- The executable wrapper, run on the sliced schema, refines full-schema
     partial authorization whenever its own entity/ancestor guard passes. -/
 theorem isAuthorizedPartialWithSlicedPolicies_refines_full
-    {sliced full : Schema} {policies : Policies}
-    {req : PartialRequest} {es : PartialEntities} {envS : TypeEnv} {rf : Cedar.TPE.Response}
-    (hwfF : full.validateWellFormed = .ok ())
-    (hwfS : sliced.validateWellFormed = .ok ())
-    (hslice : sliced.IsActionSliceOf full req.action)
-    (hnolits : full.noActionLiteralsInConditions policies = true)
-    (hnotests : full.noActionTypeTestsInConditions policies = true)
-    (hno : full.noActionTypedAttrs = true)
-    (hS : validatePartialRequest sliced req = .ok envS)
-    (hguard : (entitiesIsValid envS.schema es && (es.ancestors req.action).isSome) = true)
-    (hbase : isAuthorized full policies req es = .ok rf) :
-    ∃ rs, isAuthorizedPartialWithSlicedPolicies sliced policies req es = .ok rs ∧
-      rs.SliceRefines rf := by
-  have hschS : envS.schema = sliced := by
-    obtain ⟨_, _, hetsS, hactsS, _⟩ := SlicedPoliciesActionInAny.env_facts hS
-    simp only [TypeEnv.schema, hetsS, hactsS]
-  simp only [Bool.and_eq_true] at hguard
-  obtain ⟨hents, hanc⟩ := hguard
+    {slicedSchema fullSchema : Schema} {policies : Policies}
+    {partialRequest : PartialRequest} {partialEntities : PartialEntities} {slicedRequestEnv : TypeEnv} {fullResponse : Cedar.TPE.Response}
+    (fullSchemaWellFormed : fullSchema.validateWellFormed = .ok ())
+    (slicedSchemaWellFormed : slicedSchema.validateWellFormed = .ok ())
+    (schemaSlice : slicedSchema.IsActionSliceOf fullSchema partialRequest.action)
+    (noActionLiteralsInConditions : fullSchema.noActionLiteralsInConditions policies = true)
+    (noActionTypeTestsInConditions : fullSchema.noActionTypeTestsInConditions policies = true)
+    (noActionTypedAttributes : fullSchema.noActionTypedAttrs = true)
+    (slicedRequestValid : validatePartialRequest slicedSchema partialRequest = .ok slicedRequestEnv)
+    (slicedEntityGuard : (entitiesIsValid slicedRequestEnv.schema partialEntities && (partialEntities.ancestors partialRequest.action).isSome) = true)
+    (fullAuthorization : isAuthorized fullSchema policies partialRequest partialEntities = .ok fullResponse) :
+    ∃ slicedResponse, isAuthorizedPartialWithSlicedPolicies slicedSchema policies partialRequest partialEntities = .ok slicedResponse ∧
+      slicedResponse.SliceRefines fullResponse := by
+  have slicedEnvSchema : slicedRequestEnv.schema = slicedSchema := by
+    obtain ⟨_, _, slicedEntityTypes, slicedActions, _⟩ := SlicedPoliciesActionInAny.env_facts slicedRequestValid
+    simp only [TypeEnv.schema, slicedEntityTypes, slicedActions]
+  simp only [Bool.and_eq_true] at slicedEntityGuard
+  obtain ⟨slicedEntitiesValid, actionAncestorsKnown⟩ := slicedEntityGuard
   unfold isAuthorizedPartialWithSlicedPolicies
-  simp only [hS, hents, hanc, Bool.and_self, ite_true]
-  exact isAuthorized_sliced_schema_refines hwfF hwfS hslice hnolits hnotests hno hS
-    (hschS ▸ hents) hanc hbase
+  simp only [slicedRequestValid, slicedEntitiesValid, actionAncestorsKnown, Bool.and_self, ite_true]
+  exact isAuthorized_sliced_schema_refines fullSchemaWellFormed slicedSchemaWellFormed schemaSlice noActionLiteralsInConditions noActionTypeTestsInConditions noActionTypedAttributes slicedRequestValid
+    (slicedEnvSchema ▸ slicedEntitiesValid) actionAncestorsKnown fullAuthorization
 
 end Cedar.Thm.CrossSchema

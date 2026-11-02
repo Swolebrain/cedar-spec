@@ -532,15 +532,15 @@ theorem policy_toExpr_check (schema : Schema) (p : Policy) :
 theorem evaluatePolicy_actionInAny_slice_keep
     {schema : Schema} {req : PartialRequest} {es : PartialEntities} {env : TypeEnv}
     {p p' : Policy} {uids : List EntityUID} {r : Residual}
-    (hreq : validatePartialRequest schema req = .ok env)
-    (hes : entitiesIsValid schema es = true)
-    (hanc : (es.ancestors req.action).isSome = true)
-    (hslice : Policy.sliceForRequestEnv p env = some p')
-    (hscope : p.actionScope = .actionInAny uids)
-    (heval : evaluatePolicy schema p req es = .ok r) :
+    (partialRequestValid : validatePartialRequest schema req = .ok env)
+    (partialEntitiesValid : entitiesIsValid schema es = true)
+    (actionAncestorsKnown : (es.ancestors req.action).isSome = true)
+    (policySlice : Policy.sliceForRequestEnv p env = some p')
+    (actionScopeShape : p.actionScope = .actionInAny uids)
+    (originalPolicyEvaluation : evaluatePolicy schema p req es = .ok r) :
     evaluatePolicy schema p' req es = .ok r := by
-  obtain ⟨ase, hfind, hets, hacts, hact⟩ := env_facts hreq
-  obtain ⟨rfl, hne⟩ := slice_facts hscope hslice
+  obtain ⟨ase, hfind, hets, hacts, hact⟩ := env_facts partialRequestValid
+  obtain ⟨rfl, hne⟩ := slice_facts actionScopeShape policySlice
   have hsch : env.schema = schema := by
     simp only [TypeEnv.schema, hets, hacts]
   have hcontains : env.acts.contains env.reqty.action = true := by
@@ -551,36 +551,36 @@ theorem evaluatePolicy_actionInAny_slice_keep
     intro u hu
     rw [hact] at hu ⊢
     rw [hacts] at hu
-    exact inₑ_of_descendentOf hes hfind hanc hu
+    exact inₑ_of_descendentOf partialEntitiesValid hfind actionAncestorsKnown hu
   generalize hkept : uids.filter (env.acts.descendentOf env.reqty.action ·) = kept at hne
   have hsub : ∀ u ∈ kept, u ∈ uids := by
     intro u hu; rw [← hkept] at hu; exact (List.mem_filter.mp hu).1
   have hdesc : ∀ u ∈ kept, env.acts.descendentOf env.reqty.action u = true := by
     intro u hu; rw [← hkept] at hu; simpa using (List.mem_filter.mp hu).2
-  unfold evaluatePolicy at heval ⊢
-  rw [hreq] at heval ⊢
-  simp only [hsch, hes, ite_true] at heval ⊢
+  unfold evaluatePolicy at originalPolicyEvaluation ⊢
+  rw [partialRequestValid] at originalPolicyEvaluation ⊢
+  simp only [hsch, partialEntitiesValid, ite_true] at originalPolicyEvaluation ⊢
   cases hc : checkEntities schema p.toExpr with
-  | error e => simp [hc, Except.mapError, bind, Except.bind] at heval
+  | error e => simp [hc, Except.mapError, bind, Except.bind] at originalPolicyEvaluation
   | ok u =>
     have hc' : checkEntities schema p.toExpr = .ok () := hc
     have hc'' : checkEntities schema
         ({ p with actionScope := ActionScope.actionInAny kept } : Policy).toExpr = .ok () := by
       rw [policy_toExpr_check] at hc' ⊢
       refine ⟨hc'.1, ?_, hc'.2.2⟩
-      rw [hscope] at hc'
+      rw [actionScopeShape] at hc'
       exact check_actionInAny hsub hc'.2.1
     cases ht : typeOf (substituteAction env.reqty.action p.toExpr) ∅ env with
-    | error e => simp only [hc, ht, Except.mapError, bind, Except.bind] at heval; cases heval
+    | error e => simp only [hc, ht, Except.mapError, bind, Except.bind] at originalPolicyEvaluation; cases originalPolicyEvaluation
     | ok tc =>
       obtain ⟨te, cte⟩ := tc
-      simp only [hc, hc'', ht, Except.mapError, bind, Except.bind, Except.ok.injEq] at heval ⊢
-      subst heval
+      simp only [hc, hc'', ht, Except.mapError, bind, Except.bind, Except.ok.injEq] at originalPolicyEvaluation ⊢
+      subst originalPolicyEvaluation
       have hrel : Rel env req es (typeOf (substituteAction env.reqty.action p.toExpr) ∅ env)
           (typeOf (substituteAction env.reqty.action
             ({ p with actionScope := ActionScope.actionInAny kept } : Policy).toExpr) ∅ env) := by
         rw [policy_toExpr_subst, policy_toExpr_subst]
-        simp only [hscope]
+        simp only [actionScopeShape]
         rw [subst_actionInAny, subst_actionInAny]
         exact typeOf_and_congr_right (fun c' =>
           typeOf_and_congr_left (rel_actExpr hcontains hsub hne hdesc hin c'))

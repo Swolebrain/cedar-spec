@@ -645,18 +645,18 @@ theorem slice_none_cases {p : Policy} {env : TypeEnv}
 theorem evaluatePolicy_dropped_isFalse
     {schema : Schema} {req : PartialRequest} {env : TypeEnv} {p : Policy}
     {es : PartialEntities} {r : Residual}
-    (hreq : validatePartialRequest schema req = .ok env)
-    (hanc : (es.ancestors req.action).isSome = true)
-    (hslice : Cedar.TPE.Policy.sliceForRequestEnv p env = none)
-    (heval : evaluatePolicy schema p req es = .ok r) :
+    (partialRequestValid : validatePartialRequest schema req = .ok env)
+    (actionAncestorsKnown : (es.ancestors req.action).isSome = true)
+    (policyDropped : Cedar.TPE.Policy.sliceForRequestEnv p env = none)
+    (policyEvaluation : evaluatePolicy schema p req es = .ok r) :
     r.isFalse = true := by
-  obtain ⟨ase, hfind, hets, hacts, hact⟩ := env_facts hreq
+  obtain ⟨ase, hfind, hets, hacts, hact⟩ := env_facts partialRequestValid
   have hsch : env.schema = schema := by simp only [TypeEnv.schema, hets, hacts]
-  unfold evaluatePolicy at heval
-  rw [hreq] at heval
-  simp only [hsch] at heval
-  split at heval
-  case isFalse => cases heval
+  unfold evaluatePolicy at policyEvaluation
+  rw [partialRequestValid] at policyEvaluation
+  simp only [hsch] at policyEvaluation
+  split at policyEvaluation
+  case isFalse => cases policyEvaluation
   rename_i hes
   have hcont : env.acts.contains env.reqty.action = true := by
     rw [hacts, hact]; simp [ActionSchema.contains, hfind]
@@ -664,7 +664,7 @@ theorem evaluatePolicy_dropped_isFalse
       some (env.acts.descendentOf env.reqty.action u) := by
     rw [hacts, hact]
     intro u
-    obtain ⟨ancs, hancs⟩ := Option.isSome_iff_exists.mp hanc
+    obtain ⟨ancs, hancs⟩ := Option.isSome_iff_exists.mp actionAncestorsKnown
     have hA := ancestors_eq hes hfind hancs
     subst hA
     unfold Cedar.TPE.inₑ
@@ -686,19 +686,19 @@ theorem evaluatePolicy_dropped_isFalse
       cases p.resourceScope
       exact subst_scope_nonaction _ _ _ (by decide)
     rw [hpe, hre]
-    rcases slice_none_cases hslice with h | h | h
+    rcases slice_none_cases policyDropped with h | h | h
     · exact F_and_left (hP.2 h)
     · exact F_and_right hP.1 (F_and_left (hA.2 h))
     · exact F_and_right hP.1 (F_and_right hA.1 (F_and_left (hR.2 h)))
   cases hc : checkEntities schema p.toExpr with
-  | error e => simp [hc, Except.mapError, bind, Except.bind] at heval
+  | error e => simp [hc, Except.mapError, bind, Except.bind] at policyEvaluation
   | ok u =>
     cases ht : typeOf (substituteAction env.reqty.action p.toExpr) ∅ env with
-    | error e => simp only [hc, ht, Except.mapError, bind, Except.bind] at heval; cases heval
+    | error e => simp only [hc, ht, Except.mapError, bind, Except.bind] at policyEvaluation; cases policyEvaluation
     | ok tc =>
       obtain ⟨te, cte⟩ := tc
-      simp only [hc, ht, Except.mapError, bind, Except.bind, Except.ok.injEq] at heval
-      subst heval
+      simp only [hc, ht, Except.mapError, bind, Except.bind, Except.ok.injEq] at policyEvaluation
+      subst policyEvaluation
       obtain ⟨_, ty, hev⟩ := hF ∅ te cte ht
       have : Cedar.TPE.evaluate env te.liftBoolTypes.toResidual req es =
           .val (.prim (.bool false)) ty := hev

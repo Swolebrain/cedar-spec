@@ -15,12 +15,9 @@
 -/
 
 import Cedar.Thm.TPE.SlicedPoliciesCore
+import Cedar.Thm.TPE.SlicedPoliciesActionInAny
+import Cedar.Thm.TPE.SlicedPoliciesDropped
 import Cedar.Thm.TPE.SlicedPoliciesCrossSchema
-
-/-!
-Correctness of partial authorization with policies sliced for one request
-environment.
--/
 
 namespace Cedar.Thm
 
@@ -37,23 +34,40 @@ open Cedar.Validation
     partial-entity premises are the executable success-path checks performed by
     `isAuthorizedPartialWithSlicedPolicies`. -/
 theorem isAuthorizedPartialWithSlicedPolicies_refines
-    {full sliced : Schema} {policies : Policies} {preq : PartialRequest}
-    {pes : PartialEntities} {envS : TypeEnv} {rf : Cedar.TPE.Response}
-    (hwf : full.validateWellFormed = .ok ())
-    (hwfs : sliced.validateWellFormed = .ok ())
-    (hslice : sliced.IsActionSliceOf full preq.action)
-    (hnolits : full.noActionLiteralsInConditions policies = true)
-    (hnoistys : full.noActionTypeTestsInConditions policies = true)
-    (hnoacttys : full.noActionTypedAttrs = true)
-    (henv : validatePartialRequest sliced preq = .ok envS)
-    (hguard :
-      (entitiesIsValid envS.schema pes &&
-        (pes.ancestors preq.action).isSome) = true)
-    (hbase : TPE.isAuthorized full policies preq pes = .ok rf) :
-    ∃ rs,
-      TPE.isAuthorizedPartialWithSlicedPolicies sliced policies preq pes = .ok rs ∧
-      rs.SliceRefines rf :=
+    {fullSchema slicedSchema : Schema}
+    {policies : Policies}
+    {partialRequest : PartialRequest}
+    {partialEntities : PartialEntities}
+    {slicedRequestEnv : TypeEnv}
+    {fullResponse : Cedar.TPE.Response}
+    (fullSchemaWellFormed : fullSchema.validateWellFormed = .ok ())
+    (slicedSchemaWellFormed : slicedSchema.validateWellFormed = .ok ())
+    (schemaSlice : slicedSchema.IsActionSliceOf fullSchema partialRequest.action)
+    (noActionLiteralsInConditions :
+      fullSchema.noActionLiteralsInConditions policies = true)
+    (noActionTypeTestsInConditions :
+      fullSchema.noActionTypeTestsInConditions policies = true)
+    (noActionTypedAttributes : fullSchema.noActionTypedAttrs = true)
+    (slicedRequestValid :
+      validatePartialRequest slicedSchema partialRequest = .ok slicedRequestEnv)
+    (slicedEntityGuard :
+      (entitiesIsValid slicedRequestEnv.schema partialEntities &&
+        (partialEntities.ancestors partialRequest.action).isSome) = true)
+    (fullAuthorization :
+      TPE.isAuthorized fullSchema policies partialRequest partialEntities = .ok fullResponse) :
+    ∃ slicedResponse,
+      TPE.isAuthorizedPartialWithSlicedPolicies
+        slicedSchema policies partialRequest partialEntities = .ok slicedResponse ∧
+      slicedResponse.SliceRefines fullResponse :=
   CrossSchema.isAuthorizedPartialWithSlicedPolicies_refines_full
-    hwf hwfs hslice hnolits hnoistys hnoacttys henv hguard hbase
+    fullSchemaWellFormed
+    slicedSchemaWellFormed
+    schemaSlice
+    noActionLiteralsInConditions
+    noActionTypeTestsInConditions
+    noActionTypedAttributes
+    slicedRequestValid
+    slicedEntityGuard
+    fullAuthorization
 
 end Cedar.Thm
