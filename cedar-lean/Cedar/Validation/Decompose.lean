@@ -20,17 +20,22 @@ public import Cedar.Validation.RequestEntityValidator
 import Cedar.Data.SizeOf -- `Map.sizeOf_lt_of_toList` for a termination proof
 
 /-!
-This file defines the action closure of a schema action (`Schema.actionClosure`)
-and the executable side conditions under which authorization of a request on
-that action depends only on the action entities in its closure:
+This file defines the action closure of a schema action (`Schema.actionClosure`),
+the relation between a full schema and a schema containing one action closure
+(`Schema.IsActionSliceOf`), and the executable side conditions under which
+authorization can use those slices:
 
   * `Schema.noActionLiteralsInConditions`: no policy has an action-typed entity
-    literal in a `when`/`unless` body, and
+    literal in a `when`/`unless` body,
+  * `Schema.noActionTypeTestsInConditions`: no policy condition tests an action
+    type with `is`, and
   * `Schema.noActionTypedAttrs`: the schema uses no action type where an entity
     type is expected.
 
-The corresponding theorem is
-`Cedar.Validation.isAuthorized_insensitive_to_offclosure_actions`.
+The concrete-authorization theorem is
+`Cedar.Validation.isAuthorized_insensitive_to_offclosure_actions`. The partial-
+authorization theorem is
+`Cedar.Thm.isAuthorizedPartialWithSlicedPolicies_refines`.
 -/
 
 namespace Cedar.Validation
@@ -52,6 +57,18 @@ public def Schema.actionClosure (s : Schema) (uid : EntityUID) : Set EntityUID :
   match s.acts.find? uid with
   | none       => Set.empty
   | some entry => Set.make (uid :: entry.ancestors.toList)
+
+/-- `sliced` contains all entity types of `full` and exactly the request action
+    and its ancestors, with the same action entries as `full`. This models the
+    complete schema obtained by composing an entity registry with one action-TC
+    fragment. -/
+public structure Schema.IsActionSliceOf (sliced full : Schema) (action : EntityUID) : Prop where
+  ets : sliced.ets = full.ets
+  acts : ∀ uid,
+    sliced.acts.find? uid =
+      if (full.actionClosure action).contains uid
+      then full.acts.find? uid
+      else none
 
 ----- Action literals in policy conditions -----
 
@@ -97,6 +114,39 @@ public def _root_.Cedar.Spec.Policy.conditionLiteralUIDs (p : Policy) : Set Enti
     action TC store omits, so it is ruled out. -/
 public def Schema.noActionLiteralsInConditions (s : Schema) (policies : Policies) : Bool :=
   policies.all λ p => p.conditionLiteralUIDs.toList.all λ uid => !s.acts.actionType? uid.ty
+
+/-- Every entity type named by an `is` test anywhere in `x`. -/
+public def _root_.Cedar.Spec.Expr.isEntityTypes (x : Expr) : Set EntityType :=
+  match x with
+  | .lit _ | .var _ => Set.empty
+  | .ite x₁ x₂ x₃ => x₁.isEntityTypes ∪ x₂.isEntityTypes ∪ x₃.isEntityTypes
+  | .and x₁ x₂ | .or x₁ x₂ | .binaryApp _ x₁ x₂ => x₁.isEntityTypes ∪ x₂.isEntityTypes
+  | .unaryApp (.is ety) x => Set.singleton ety ∪ x.isEntityTypes
+  | .unaryApp _ x | .getAttr x _ | .hasAttr x _ | .extHasAttr x _ _ => x.isEntityTypes
+  | .set xs | .call _ xs => xs.mapUnion₁ (λ ⟨x, _⟩ => x.isEntityTypes)
+  | .record axs => axs.mapUnion₂ (λ ⟨⟨_, x⟩, _⟩ => x.isEntityTypes)
+termination_by sizeOf x
+decreasing_by
+  any_goals
+    simp
+    try simp at *
+    try omega
+  all_goals
+    rename_i h
+    let so := List.sizeOf_lt_of_mem h
+    simp at *
+    omega
+
+/-- Entity types named by `is` tests in a policy's `when`/`unless` bodies. -/
+public def _root_.Cedar.Spec.Policy.conditionIsEntityTypes (p : Policy) : Set EntityType :=
+  p.condition.mapUnion (·.body.isEntityTypes)
+
+/-- Executable check: no `when`/`unless` body tests for an action type with
+    `is`. A schema slice containing only one action closure may omit every
+    action of another action type, so the typechecker cannot recognize that
+    omitted type as an action type. -/
+public def Schema.noActionTypeTestsInConditions (s : Schema) (policies : Policies) : Bool :=
+  policies.all λ p => p.conditionIsEntityTypes.toList.all λ ety => !s.acts.actionType? ety
 
 ----- Action-typed attributes -----
 

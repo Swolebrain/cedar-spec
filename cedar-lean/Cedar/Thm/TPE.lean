@@ -26,6 +26,11 @@ import Cedar.Thm.TPE.Policy
 import Cedar.Thm.TPE.Authorizer
 import Cedar.Thm.TPE.WellTyped
 import Cedar.Thm.TPE.ErrorFree
+import Cedar.Thm.TPE.SlicedPoliciesActionInAny
+import Cedar.Thm.TPE.SlicedPoliciesDropped
+import Cedar.Thm.TPE.SlicedPoliciesCore
+import Cedar.Thm.TPE.SlicedPoliciesCrossSchema
+import Cedar.Thm.TPE.SlicedPolicies
 import Cedar.Thm.Validation
 import Cedar.Thm.Authorization
 

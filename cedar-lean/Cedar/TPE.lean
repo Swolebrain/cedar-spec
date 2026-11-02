@@ -18,3 +18,4 @@ import Cedar.TPE.Input
 import Cedar.TPE.Residual
 import Cedar.TPE.Evaluator
 import Cedar.TPE.BatchedEvaluator
+import Cedar.TPE.SlicedPolicies
