@@ -2877,8 +2877,8 @@ theorem sliceForRequestEnv_preserves_id_effect {p p' : Policy} {env : TypeEnv}
   obtain ⟨_, _, _, _, rfl⟩ := sliceForRequestEnv_facts h
   exact ⟨rfl, rfl⟩
 
-/-- Authorization with sliced policies under the sliced schema refines full
-    authorization under the full schema. -/
+/-- Authorization with sliced policies under the sliced schema produces an
+    equivalent response modulo omitted known-false policies. -/
 theorem isAuthorized_sliced_schema_refines
     {slicedSchema fullSchema : Schema} {policies : Policies}
     {partialRequest : PartialRequest} {partialEntities : PartialEntities} {slicedRequestEnv : TypeEnv} {fullResponse : Cedar.TPE.Response}
@@ -2931,8 +2931,9 @@ theorem isAuthorized_sliced_schema_refines
     rw [slicedResidualEvaluation]
     exact ⟨isAuthorizedFromResiduals slicedResidualPolicies, rfl, isAuthorizedFromResiduals_dropFalse residualsDropFalse⟩
 
-/-- The executable wrapper, run on the sliced schema, refines full-schema
-    partial authorization whenever its own entity/ancestor guard passes. -/
+/-- The executable wrapper, run on the sliced schema, produces a response
+    equivalent to full-schema partial authorization modulo omitted known-false
+    policies whenever its own entity/ancestor guard passes. -/
 theorem isAuthorizedPartialWithSlicedPolicies_refines_full
     {slicedSchema fullSchema : Schema} {policies : Policies}
     {partialRequest : PartialRequest} {partialEntities : PartialEntities} {slicedRequestEnv : TypeEnv} {fullResponse : Cedar.TPE.Response}

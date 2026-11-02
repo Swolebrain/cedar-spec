@@ -42,7 +42,7 @@ inductive ResidualPolicies.DropFalse : List ResidualPolicy → List ResidualPoli
   | drop {r full sliced} : r.isFalse = true → ResidualPolicies.DropFalse full sliced →
       ResidualPolicies.DropFalse (r :: full) sliced
 
-/-- The observable refinement produced by dropping known-false policies. -/
+/-- The response equivalence produced by omitting known-false policies. -/
 structure _root_.Cedar.TPE.Response.SliceRefines (sliced full : Cedar.TPE.Response) : Prop where
   decision : sliced.decision = full.decision
   satisfiedPermits : sliced.satisfiedPermits = full.satisfiedPermits

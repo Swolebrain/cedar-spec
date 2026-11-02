@@ -25,8 +25,8 @@ open Cedar.Spec
 open Cedar.TPE
 open Cedar.Validation
 
-/-- Partial authorization using only an already-composed action-sliced schema
-    refines partial authorization using the full schema.
+/-- Partial authorization using an action-sliced schema produces an equivalent
+    response modulo omitted known-false policies.
 
     The sliced schema is required to be well formed because
     `Schema.IsActionSliceOf` constrains observable lookups but, by itself,
